@@ -1,5 +1,3 @@
-# Wire into the NixOS flake like packages/apple/vm-tools.nix.
-# See docs/NIXOS.md. Upstream: https://github.com/r3dg0d/vmtools
 { lib, python3Packages, makeWrapper, qemu_kvm, libvirt, virt-manager, virt-viewer,
   guestfs-tools, swtpm, OVMFFull, docker-client, coreutils, curl }:
 python3Packages.buildPythonApplication {

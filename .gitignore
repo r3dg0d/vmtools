@@ -6,3 +6,8 @@ dist/
 .pytest_cache/
 secrets.env
 *.part
+build/
+.env
+*.iso
+*.iso.part
+.DS_Store
