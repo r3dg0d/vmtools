@@ -76,16 +76,21 @@ def doctor_libvirt(*, json_mode: bool = False) -> tuple[list[dict], bool]:
     rows.append(_row("swtpm", bool(which("swtpm")), which("swtpm") or "missing (needed for Win11 TPM)"))
 
     try:
-        nets = lv.network_list()
-        default = next((n for n in nets if n["name"] == "default"), None)
-        if default and default.get("state") == "active":
-            rows.append(_row("Default network", True, "default active"))
-        elif default:
-            rows.append(_row("Default network", False, "default defined but not active"))
-            blocking = True
+        from .layout import config as load_config
+        uri_now = str(load_config().get("libvirt_uri", "qemu:///session"))
+        if "session" in uri_now:
+            rows.append(_row("Default network", True, "session URI uses user networking by default"))
         else:
-            rows.append(_row("Default network", False, "no default network"))
-            blocking = True
+            nets = lv.network_list()
+            default = next((n for n in nets if n["name"] == "default"), None)
+            if default and default.get("state") == "active":
+                rows.append(_row("Default network", True, "default active"))
+            elif default:
+                rows.append(_row("Default network", False, "default defined but not active"))
+                blocking = True
+            else:
+                rows.append(_row("Default network", False, "no default network"))
+                blocking = True
     except Exception as exc:  # noqa: BLE001
         rows.append(_row("Default network", False, str(exc)[:80]))
         blocking = True
