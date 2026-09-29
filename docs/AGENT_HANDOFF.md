@@ -3,8 +3,10 @@
 ## REPOSITORY
 `/home/neo/Projects/vmtools` (local; not yet pushed)
 
+Commits: see `git log --oneline`
+
 ## BRANCH
-(uninitialized or main — check `git status`)
+master
 
 ## GIT STATUS
 See repo; ensure `secrets.env` is never committed (lives in `~/.config/vmtools/`).
