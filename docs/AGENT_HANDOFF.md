@@ -88,3 +88,8 @@ tail -f ~/.local/share/vmtools/logs/virtio-pull.log
 - Virtio-win ISO cached: `~/.local/share/vmtools/isos/windows/drivers/virtio-win.iso` (837 MiB).
 - Pulled `budtmo2/docker-android-pro:emulator_15.0` (~10.7 GB).
 - `androidvm launch pixel15` → running; ports 127.0.0.1:6080 (noVNC) / :6081 (ADB).
+
+### ADB note (2026-09-29 02:11 PT)
+- Emulator booted (Android 15, `sys.boot_completed=1`). noVNC: http://127.0.0.1:6080
+- Host `adb connect 127.0.0.1:6081` stays **offline** (Docker-Android local transport). Use `androidvm adb|shell|logcat` → `docker exec … adb`.
+- Next `androidvm launch` gets `--shm-size 2g` + paired 5554 publish.
