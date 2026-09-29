@@ -108,17 +108,27 @@ def start(name: str) -> None:
     run(["docker", "rm", "-f", cname], check=False)
     viewer_port = meta["viewer"].split(":")[-1]
     adb_port = meta["adb"].split(":")[-1]
+    # console port = adb_port - 1 when possible (emulator pairs 5554/5555)
+    try:
+        console_port = str(int(adb_port) - 1)
+    except ValueError:
+        console_port = None
     cmd = [
         "docker", "run", "-d",
         "--name", cname,
         "--device", "/dev/kvm",
+        "--shm-size", "2g",
         "-e", f"EMULATOR_DEVICE={meta.get('device', 'Samsung Galaxy S10')}",
         "-e", "WEB_VNC=true",
         "-p", f"127.0.0.1:{viewer_port}:6080",
         "-p", f"127.0.0.1:{adb_port}:5555",
+    ]
+    if console_port and console_port != viewer_port:
+        cmd.extend(["-p", f"127.0.0.1:{console_port}:5554"])
+    cmd.extend([
         "-v", f"{meta['volume']}:/home/androidusr",
         meta["image"],
-    ]
+    ])
     OUT.vsay(" ".join(cmd))
     run(cmd, capture=True)
     OUT.ok(f"started {name}")
@@ -158,8 +168,25 @@ def open_gui(name: str) -> None:
 
 
 def adb_connect(name: str) -> None:
+    """Ensure the guest is reachable via in-container adb (reliable path).
+
+    Host `adb connect` to the published 5555 mapping is best-effort with
+    Docker-Android; the emulator often only exposes a local transport.
+    """
     meta = load_vm(name)
-    if not which("adb"):
-        raise Fail("adb not found on PATH", EXIT_BACKEND, "install android-tools / platform-tools")
-    run(["adb", "connect", meta["adb"]])
-    OUT.ok(f"adb connected to {meta['adb']}")
+    cname = meta["container"]
+    r = run(["docker", "exec", cname, "adb", "devices"], check=False)
+    if r.returncode != 0:
+        raise Fail("adb inside container failed — is the VM running?", EXIT_BACKEND)
+    OUT.ok(f"adb ready inside {cname}")
+    OUT.note(f"use: androidvm shell {name}   (or: docker exec -it {cname} adb ...)")
+    # best-effort host connect for users who want platform-tools on the host
+    if which("adb"):
+        host = run(["adb", "connect", meta["adb"]], check=False)
+        if host.returncode == 0 and "connected" in (host.stdout + host.stderr).lower():
+            OUT.note(f"host adb connect {meta['adb']} attempted")
+
+
+def adb_exec(name: str, *adb_args: str, check: bool = True):
+    meta = load_vm(name)
+    return run(["docker", "exec", "-i", meta["container"], "adb", *adb_args], check=check)

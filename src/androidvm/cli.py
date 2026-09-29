@@ -253,15 +253,19 @@ def cmd_adb(args) -> int:
 
 
 def cmd_shell(args) -> int:
-    rt.adb_connect(validate_name(args.name))
+    name = validate_name(args.name)
+    rt.adb_connect(name)
     import subprocess
-    return subprocess.call(["adb", "shell"])
+    meta = rt.load_vm(name)
+    return subprocess.call(["docker", "exec", "-it", meta["container"], "adb", "shell"])
 
 
 def cmd_logcat(args) -> int:
-    rt.adb_connect(validate_name(args.name))
+    name = validate_name(args.name)
+    rt.adb_connect(name)
     import subprocess
-    return subprocess.call(["adb", "logcat"])
+    meta = rt.load_vm(name)
+    return subprocess.call(["docker", "exec", "-it", meta["container"], "adb", "logcat"])
 
 
 def cmd_stub(args) -> int:
