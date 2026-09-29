@@ -138,7 +138,22 @@ def snapshot_create(name: str, snap: str, description: str = "") -> None:
     args = ["snapshot-create-as", name, snap]
     if description:
         args.extend(["--description", description])
-    _virsh(*args)
+    r = _virsh(*args, check=False)
+    if r.returncode != 0:
+        # UEFI pflash NVRAM often blocks internal snapshots; disk-only is the workable path.
+        OUT.warn("internal snapshot failed; trying --disk-only")
+        args2 = ["snapshot-create-as", name, snap, "--disk-only", "--quiesce"]
+        # quiesce may fail without guest agent; retry without it
+        r2 = _virsh(*args2, check=False)
+        if r2.returncode != 0:
+            args3 = ["snapshot-create-as", name, snap, "--disk-only"]
+            if description:
+                args3.extend(["--description", description])
+            _virsh(*args3)
+            OUT.ok(f"disk-only snapshot {snap} created for {name}")
+            return
+        OUT.ok(f"disk-only snapshot {snap} created for {name}")
+        return
     OUT.ok(f"snapshot {snap} created for {name}")
 
 

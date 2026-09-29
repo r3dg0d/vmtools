@@ -40,6 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--disk", type=int)
     c.add_argument("--offline", action="store_true")
     c.add_argument("--network", default=None)
+    c.add_argument("--edition", default=None)
+    c.add_argument("--arch", default=None)
+    c.add_argument("-y", "--yes", action="store_true", help="noninteractive confirm")
+    c.add_argument("--no-launch", action="store_true")
 
     for name, h, fn in [
         ("launch", "start a VM", cmd_start),

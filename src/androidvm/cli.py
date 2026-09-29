@@ -1,4 +1,4 @@
-"""androidvm — Docker-Android-Pro manager (sponsor access required for pulls)."""
+"""androidvm — Docker-Android-Pro manager (requires legitimate Pro access)."""
 
 from __future__ import annotations
 
@@ -8,18 +8,16 @@ import os
 from pathlib import Path
 
 from vmtools.app import Parser, add_global_flags, main as app_main, topic
+from vmtools.config import validate_name
 from vmtools.layout import LAYOUT, config, ensure
+from vmtools.menu import confirm, prompt
 from vmtools.proc import which
 from vmtools.ui import EXIT_ACCESS, EXIT_OK, EXIT_PREREQ, Fail, OUT, STYLE, SYM_BAD, SYM_OK
 
 from .access import access_configured, credentials, docker_login, require_access
+from . import images as img
+from . import runtime as rt
 from .ports import allocate
-
-
-FUTURE = (
-    "list", "create", "launch", "start", "stop", "restart", "delete", "info",
-    "gui", "adb", "logcat", "shell", "screenshot", "record", "images", "pull", "reset",
-)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,12 +38,46 @@ def build_parser() -> argparse.ArgumentParser:
     add("status", "show backend status", cmd_status)
     add("setup", "verify host + configure Pro login", cmd_setup)
     add("doctor", "host + access checks", cmd_doctor)
-    add("config", "show config", cmd_config).add_argument("key", nargs="?")
-    # Future commands: report not configured / not implemented until access
-    for name in FUTURE:
-        sp = add(name, f"(requires Pro access) {name}", cmd_future)
-        if name in ("launch", "start", "stop", "restart", "delete", "info", "gui", "adb", "logcat", "shell", "screenshot", "record", "reset", "pull"):
+    cfg = add("config", "show config", cmd_config)
+    cfg.add_argument("key", nargs="?")
+
+    add("list", "list Android VMs", cmd_list)
+    add("images", "list Pro image tags", cmd_images)
+    pull = add("pull", "pull a Pro image tag", cmd_pull)
+    pull.add_argument("tag", nargs="?", default="emulator_15.0")
+
+    c = add("create", "create an Android VM definition", cmd_create)
+    c.add_argument("--name")
+    c.add_argument("--tag", default="emulator_15.0")
+    c.add_argument("--device", default="Samsung Galaxy S10")
+    c.add_argument("--no-pull", action="store_true")
+    c.add_argument("-y", "--yes", action="store_true")
+
+    for name, h, fn in [
+        ("launch", "start VM", cmd_start),
+        ("start", "start VM", cmd_start),
+        ("stop", "stop VM", cmd_stop),
+        ("restart", "restart VM", cmd_restart),
+        ("delete", "delete VM", cmd_delete),
+        ("info", "VM info", cmd_info),
+        ("gui", "open noVNC in browser", cmd_gui),
+        ("adb", "adb connect", cmd_adb),
+        ("shell", "adb shell", cmd_shell),
+        ("logcat", "adb logcat", cmd_logcat),
+        ("screenshot", "not yet implemented", cmd_stub),
+        ("record", "not yet implemented", cmd_stub),
+        ("reset", "delete persisted volume data", cmd_reset),
+    ]:
+        sp = add(name, h, fn)
+        if name != "screenshot" and name != "record":
+            sp.add_argument("name")
+        else:
             sp.add_argument("name", nargs="?")
+        if name == "delete":
+            sp.add_argument("--keep-data", action="store_true")
+            sp.add_argument("-y", "--yes", action="store_true")
+        if name == "reset":
+            sp.add_argument("-y", "--yes", action="store_true")
     return p
 
 
@@ -54,7 +86,7 @@ def banner() -> None:
     OUT.say(topic("Android VM Manager"))
     OUT.say()
     OUT.say("Backend:")
-    OUT.say("  Docker-Android-Pro")
+    OUT.say("  Docker-Android-Pro (budtmo2/docker-android-pro)")
     OUT.say()
     configured = access_configured()
     OUT.say("Status:")
@@ -63,22 +95,20 @@ def banner() -> None:
     if not configured:
         OUT.say("Reason:")
         OUT.say("  Docker-Android-Pro requires active GitHub sponsorship/access.")
-        OUT.say("  No attempt has been made to access sponsor-only images")
-        OUT.say("  until credentials are provided via environment.")
+        OUT.say("  Credentials via ANDROIDVM_DOCKER_* or ~/.config/vmtools/secrets.env")
         OUT.say()
     OUT.say("Commands:")
-    OUT.say("  androidvm doctor")
-    OUT.say("  androidvm setup")
-    OUT.say("  androidvm status")
-    OUT.say("  androidvm help")
+    OUT.say("  androidvm doctor | setup | status | images | create | launch | gui | adb")
 
 
 def cmd_status(args) -> int:
     payload = {
         "backend": "docker-android-pro",
+        "repo": img.DEFAULT_REPO,
         "configured": access_configured(),
         "user_env_set": bool(credentials()[0]),
         "token_env_set": bool(credentials()[1]),
+        "vms": len(rt.list_vms()),
     }
     if args.json:
         OUT.say(json.dumps(payload, indent=2))
@@ -91,28 +121,19 @@ def cmd_setup(args) -> int:
     ensure()
     OUT.step("Checking Docker")
     if not which("docker"):
-        raise Fail("docker not found", EXIT_PREREQ, "enable virtualisation.docker on NixOS")
+        raise Fail("docker not found", EXIT_PREREQ)
     OUT.ok("docker present")
-
     OUT.step("Checking /dev/kvm")
     kvm = Path("/dev/kvm")
-    if not kvm.exists():
-        raise Fail("/dev/kvm missing", EXIT_PREREQ)
-    if not os.access(kvm, os.R_OK | os.W_OK):
-        raise Fail("/dev/kvm not accessible", EXIT_PREREQ, "join the kvm group and re-login")
+    if not kvm.exists() or not os.access(kvm, os.R_OK | os.W_OK):
+        raise Fail("/dev/kvm missing or not accessible", EXIT_PREREQ)
     OUT.ok("/dev/kvm OK")
-
     user, token = credentials()
     if not user or not token:
-        OUT.warn("Pro registry credentials not found in environment.")
-        OUT.note("Export ANDROIDVM_DOCKER_USER and ANDROIDVM_DOCKER_TOKEN (Docker Hub PAT).")
-        OUT.note("Do not put the token in git, config.toml, or chat logs.")
-        raise Fail("Pro access is not configured", EXIT_ACCESS)
-
+        raise Fail("Pro access is not configured", EXIT_ACCESS, "set ANDROIDVM_DOCKER_USER/TOKEN or secrets.env")
     OUT.step("docker login (legitimate credentials only)")
     docker_login()
-    OUT.ok("Setup complete. Image pulls can proceed with androidvm pull once catalog is enabled.")
-    OUT.note("Viewer/ADB ports bind to 127.0.0.1 by default.")
+    OUT.ok("Setup complete.")
     return EXIT_OK
 
 
@@ -126,35 +147,138 @@ def cmd_doctor(args) -> int:
     row("Docker", bool(which("docker")), which("docker") or "missing")
     kvm = Path("/dev/kvm")
     row("KVM", kvm.exists() and os.access(kvm, os.R_OK | os.W_OK), str(kvm))
-    row("Pro credentials", bool(credentials()[0] and credentials()[1]), "env ANDROIDVM_DOCKER_*")
+    row("Pro credentials", bool(credentials()[0] and credentials()[1]), "env/secrets.env")
     row("Pro access state", access_configured(), "androidvm setup")
-    # port allocator smoke
+    row("adb", bool(which("adb")), which("adb") or "optional")
     try:
-        ports = allocate(6080, 2)
+        ports = allocate(18080, 2)
         row("Port allocator", True, f"sample {ports}")
     except Exception as exc:
         row("Port allocator", False, str(exc))
     if args.json:
         OUT.say(json.dumps(rows, indent=2))
-    blocking = not all(r["ok"] for r in rows if r["name"] != "Pro access state")
     if not access_configured():
         return EXIT_ACCESS
-    return EXIT_PREREQ if blocking else EXIT_OK
-
-
-def cmd_config(args) -> int:
-    cfg = config()
-    OUT.say(json.dumps(cfg.values, indent=2))
     return EXIT_OK
 
 
-def cmd_future(args) -> int:
+def cmd_config(args) -> int:
+    OUT.say(json.dumps(config().values, indent=2))
+    return EXIT_OK
+
+
+def cmd_list(args) -> int:
     require_access()
-    raise Fail(
-        f"androidvm {args.command} is scaffolded but not fully implemented yet",
-        EXIT_ACCESS,
-        "Pro access is configured; implementation of container lifecycle is next",
-    )
+    rows = []
+    for vm in rt.list_vms():
+        st = rt.status_of(vm["name"])
+        rows.append(st)
+    if args.json:
+        OUT.say(json.dumps(rows, indent=2)); return EXIT_OK
+    if not rows:
+        OUT.say("No Android VMs."); return EXIT_OK
+    OUT.say(f"{'NAME':<20} {'STATE':<12} VIEWER")
+    for r in rows:
+        OUT.say(f"{r['name']:<20} {r.get('state','?'):<12} http://{r.get('viewer')}")
+    return EXIT_OK
+
+
+def cmd_images(args) -> int:
+    tags = img.list_tags()
+    preferred = img.preferred_emulator_tags(tags)
+    if args.json:
+        OUT.say(json.dumps({"repo": img.DEFAULT_REPO, "preferred": preferred, "all": [t.get("name") for t in tags]}, indent=2))
+        return EXIT_OK
+    OUT.say(f"Repo: {img.DEFAULT_REPO}")
+    OUT.say("Preferred emulator tags:")
+    for n in preferred[:20]:
+        OUT.say(f"  {n}")
+    OUT.note(f"{len(tags)} tags total (showing preferred short tags)")
+    return EXIT_OK
+
+
+def cmd_pull(args) -> int:
+    rt.docker_pull(args.tag)
+    return EXIT_OK
+
+
+def cmd_create(args) -> int:
+    name = args.name or (None if args.yes else prompt("VM name", "pixel15"))
+    if not name:
+        raise Fail("name required", EXIT_PREREQ)
+    if not args.yes and not confirm(f"Create {name} with {args.tag}?", default=True):
+        OUT.warn("cancelled"); return EXIT_OK
+    rt.create(name, tag=args.tag, device=args.device, pull=not args.no_pull)
+    return EXIT_OK
+
+
+def cmd_start(args) -> int:
+    rt.start(validate_name(args.name)); return EXIT_OK
+
+
+def cmd_stop(args) -> int:
+    rt.stop(validate_name(args.name)); return EXIT_OK
+
+
+def cmd_restart(args) -> int:
+    name = validate_name(args.name)
+    rt.stop(name); rt.start(name); return EXIT_OK
+
+
+def cmd_delete(args) -> int:
+    name = validate_name(args.name)
+    meta = rt.load_vm(name)
+    OUT.say(f"Container: {meta['container']}")
+    OUT.say(f"Volume:    {meta['volume']}")
+    if not args.yes and not confirm("Delete?", default=False):
+        OUT.warn("cancelled"); return EXIT_OK
+    rt.delete(name, keep_data=args.keep_data); return EXIT_OK
+
+
+def cmd_info(args) -> int:
+    st = rt.status_of(validate_name(args.name))
+    if args.json:
+        OUT.say(json.dumps(st, indent=2)); return EXIT_OK
+    for k, v in st.items():
+        OUT.say(f"{k:<14} {v}")
+    return EXIT_OK
+
+
+def cmd_gui(args) -> int:
+    rt.open_gui(validate_name(args.name)); return EXIT_OK
+
+
+def cmd_adb(args) -> int:
+    rt.adb_connect(validate_name(args.name)); return EXIT_OK
+
+
+def cmd_shell(args) -> int:
+    rt.adb_connect(validate_name(args.name))
+    import subprocess
+    return subprocess.call(["adb", "shell"])
+
+
+def cmd_logcat(args) -> int:
+    rt.adb_connect(validate_name(args.name))
+    import subprocess
+    return subprocess.call(["adb", "logcat"])
+
+
+def cmd_stub(args) -> int:
+    raise Fail(f"androidvm {args.command} is not implemented yet", EXIT_PREREQ)
+
+
+def cmd_reset(args) -> int:
+    name = validate_name(args.name)
+    meta = rt.load_vm(name)
+    OUT.warn(f"This deletes docker volume {meta['volume']}")
+    if not args.yes and not confirm("Reset persisted data?", default=False):
+        OUT.warn("cancelled"); return EXIT_OK
+    rt.stop(name)
+    run = __import__("vmtools.proc", fromlist=["run"]).run
+    run(["docker", "volume", "rm", "-f", meta["volume"]], check=False)
+    OUT.ok("volume removed; next start recreates empty data")
+    return EXIT_OK
 
 
 def main(argv=None) -> int:
