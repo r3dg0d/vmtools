@@ -1,0 +1,130 @@
+"""Linux VM creation via virt-install."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from vmtools import libvirt as lv
+from vmtools.config import validate_name, write_json
+from vmtools.download import download
+from vmtools.layout import LAYOUT, config, ensure
+from vmtools.menu import confirm, prompt
+from vmtools.ui import EXIT_USAGE, Fail, OUT
+
+from .providers import get, list_providers
+
+
+def interactive_create(args) -> int:
+    ensure()
+    cfg = config()
+    OUT.say()
+    OUT.say("Create Linux VM")
+    OUT.say("─" * 28)
+
+    providers = list_providers()
+    # priority sort
+    providers = sorted(providers, key=lambda p: (p.priority, p.id))
+    OUT.say("Distribution")
+    for i, p in enumerate(providers, 1):
+        OUT.say(f"  {i}. {p.name}")
+    choice = prompt("Selection", "1")
+    try:
+        prov = providers[int(choice) - 1]
+    except (ValueError, IndexError):
+        prov = get(choice)
+
+    editions = list(prov.editions())
+    edition = editions[0]
+    if len(editions) > 1:
+        OUT.say("Edition: " + ", ".join(editions))
+        edition = prompt("Edition", editions[0])
+
+    arch = prompt("Architecture", "x86_64")
+    name = validate_name(getattr(args, "name", None) or prompt("VM Name", f"{prov.id}-test"))
+    if lv.domain_exists(name):
+        raise Fail(f"VM already exists: {name}", EXIT_USAGE)
+
+    iso_path = getattr(args, "iso", None)
+    media = None
+    if iso_path:
+        iso = Path(iso_path).expanduser().resolve()
+    elif getattr(args, "offline", False):
+        raise Fail("--offline requires --iso", EXIT_USAGE)
+    else:
+        OUT.step(f"Resolving {prov.name} media metadata")
+        media = prov.latest(edition, arch)
+        OUT.ok(f"{media.filename} ({media.version})")
+        if media.source_page:
+            OUT.note(media.source_page)
+        dest = LAYOUT.data / "isos/linux" / media.filename
+        if not media.url:
+            raise Fail("no download URL", EXIT_USAGE, "use --iso")
+        iso = download(media.url, dest, expected_sha256=media.sha256, label=media.filename)
+
+    if not iso.is_file():
+        raise Fail(f"ISO not found: {iso}", EXIT_USAGE)
+
+    cpus = int(getattr(args, "cpus", None) or prompt("CPU cores", str(cfg.get("linux_default_cpus"))))
+    ram = int(getattr(args, "ram", None) or prompt("RAM GiB", str(cfg.get("linux_default_ram_gib"))))
+    disk = int(getattr(args, "disk", None) or prompt("Disk GiB", str(cfg.get("linux_default_disk_gib"))))
+    network = prompt("Network (default|vm-lab|isolated)", "default")
+    launch = confirm("Start installer when done?", default=True)
+
+    if not confirm(f"Create {name}?", default=True):
+        OUT.warn("cancelled")
+        return 0
+
+    if network in ("vm-lab", "isolated"):
+        lv.ensure_lab_network()
+        network = "vm-lab"
+
+    disk_path = LAYOUT.data / "disks" / f"{name}.qcow2"
+    lv.qemu_img_create(disk_path, disk)
+
+    from vmtools.layout import config as _cfg
+    uri = str(_cfg().get("libvirt_uri", "qemu:///session"))
+    if network in ("default",) and "session" in uri:
+        net_arg = "user,model=virtio"
+    else:
+        net_arg = f"network={network},model=virtio"
+    args_vi = [
+        "--name", name,
+        "--memory", str(ram * 1024),
+        "--vcpus", str(cpus),
+        "--cpu", "host-passthrough",
+        "--disk", f"path={disk_path},format=qcow2,bus=virtio",
+        "--cdrom", str(iso),
+        "--osinfo", "detect=on,require=off",
+        "--boot", "uefi",
+        "--graphics", "spice,listen=none",
+        "--video", "virtio",
+        "--sound", "ich9",
+        "--channel", "spicevmc,target_type=virtio",
+        "--network", net_arg,
+        "--noautoconsole",
+    ]
+    if not launch:
+        args_vi.append("--noreboot")
+
+    OUT.step("Creating libvirt domain")
+    lv.virt_install(args_vi)
+
+    write_json(
+        LAYOUT.data / "metadata" / f"vm-{name}.json",
+        {
+            "name": name,
+            "os": "linux",
+            "distro": prov.id,
+            "edition": edition,
+            "iso": str(iso),
+            "media_id": media.id if media else None,
+            "disk": str(disk_path),
+            "cpus": cpus,
+            "ram_gib": ram,
+            "network": network,
+        },
+    )
+    OUT.ok(f"VM {name} created")
+    if launch:
+        lv.open_gui(name)
+    return 0
