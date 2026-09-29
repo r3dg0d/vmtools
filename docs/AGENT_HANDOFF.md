@@ -83,3 +83,8 @@ androidvm images
 tail -f ~/.local/share/vmtools/logs/android-pull-15.log
 tail -f ~/.local/share/vmtools/logs/virtio-pull.log
 ```
+
+### Later (2026-09-29 02:05 PT)
+- Virtio-win ISO cached: `~/.local/share/vmtools/isos/windows/drivers/virtio-win.iso` (837 MiB).
+- Pulled `budtmo2/docker-android-pro:emulator_15.0` (~10.7 GB).
+- `androidvm launch pixel15` → running; ports 127.0.0.1:6080 (noVNC) / :6081 (ADB).
