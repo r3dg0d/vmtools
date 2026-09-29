@@ -93,3 +93,9 @@ tail -f ~/.local/share/vmtools/logs/virtio-pull.log
 - Emulator booted (Android 15, `sys.boot_completed=1`). noVNC: http://127.0.0.1:6080
 - Host `adb connect 127.0.0.1:6081` stays **offline** (Docker-Android local transport). Use `androidvm adb|shell|logcat` → `docker exec … adb`.
 - Next `androidvm launch` gets `--shm-size 2g` + paired 5554 publish.
+
+### Publish (2026-09-29 02:17 PT)
+- GitHub: https://github.com/r3dg0d/vmtools (public, `master` @ 2fdc1f9+)
+- Virtio-win cached; `windowsvm create` will attach it by default.
+- NixOS system package: handed to nix megaprompt (wire `nix/package.nix` like apple-vm-tools). Until then use `~/.local/bin` wrappers.
+- Rotate Docker Hub PAT that was pasted in chat; refresh `~/.config/vmtools/secrets.env`.
