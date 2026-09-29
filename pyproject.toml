@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "vmtools"
 version = "0.1.0"
 description = "windowsvm, linuxvm, androidvm — sibling CLIs to iosvm/macosvm"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = []
 

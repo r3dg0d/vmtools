@@ -60,3 +60,7 @@ export PATH="$HOME/.local/bin:$PATH"
 ## Docs
 
 See `docs/` for architecture, per-tool notes, ISO sources, NixOS, verification, and agent handoff.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
