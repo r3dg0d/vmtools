@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=Windows Construct
+GenericName=Windows VM Manager
+Comment=Windows VMs via QEMU/KVM/libvirt (vmtools) — follow the white rabbit
+Exec=ghostty -e windowsvm tui
+Icon=computer
+Terminal=false
+Categories=System;Emulator;
+Keywords=Matrix;Windows;VM;QEMU;libvirt;vmtools;Construct;

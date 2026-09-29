@@ -21,9 +21,9 @@ from .create import interactive_create
 def build_parser() -> argparse.ArgumentParser:
     p = Parser(
         prog="windowsvm",
-        description="Manage Windows virtual machines with QEMU/KVM/libvirt.",
+        description="Windows Construct: manage Windows VMs with QEMU/KVM/libvirt.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Sibling of iosvm/macosvm/linuxvm/androidvm. Official Microsoft media only.",
+        epilog="Windows Construct — sibling of iosvm/macosvm/linuxvm/androidvm. Official Microsoft media only.",
     )
     add_global_flags(p)
     p.add_argument("--version", action="version", version="windowsvm 0.1.0")
@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
         return sp
 
     add("help", "show this help", lambda a: (p.print_help(), EXIT_OK)[1])
+    add("tui", "interactive terminal menu", lambda a: interactive_root())
     add("list", "list Windows/libvirt VMs", cmd_list)
     c = add("create", "create a Windows VM", cmd_create)
     c.add_argument("--name")
@@ -380,7 +381,7 @@ def interactive_root() -> int:
     ensure()
     domains = lv.list_domains()
     OUT.say()
-    OUT.say(topic("Windows VM Manager"))
+    OUT.say(topic("Windows Construct"))
     OUT.say("VMs")
     OUT.say("─" * 28)
     if domains:

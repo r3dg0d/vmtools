@@ -10,7 +10,7 @@ from pathlib import Path
 from vmtools.app import Parser, add_global_flags, main as app_main, topic
 from vmtools.config import validate_name
 from vmtools.layout import LAYOUT, config, ensure
-from vmtools.menu import confirm, prompt
+from vmtools.menu import confirm, menu, prompt
 from vmtools.proc import which
 from vmtools.ui import EXIT_ACCESS, EXIT_OK, EXIT_PREREQ, Fail, OUT, STYLE, SYM_BAD, SYM_OK
 
@@ -23,7 +23,7 @@ from .ports import allocate
 def build_parser() -> argparse.ArgumentParser:
     p = Parser(
         prog="androidvm",
-        description="Manage Android emulators via Docker-Android-Pro (requires legitimate Pro access).",
+        description="Android Construct: Docker-Android-Pro emulators (requires legitimate Pro access).",
     )
     add_global_flags(p)
     p.add_argument("--version", action="version", version="androidvm 0.1.0")
@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
         return sp
 
     add("help", "show help", lambda a: (p.print_help(), EXIT_OK)[1])
+    add("tui", "interactive terminal menu", lambda a: interactive_root())
     add("status", "show backend status", cmd_status)
     add("setup", "verify host + configure Pro login", cmd_setup)
     add("doctor", "host + access checks", cmd_doctor)
@@ -83,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def banner() -> None:
     OUT.say()
-    OUT.say(topic("Android VM Manager"))
+    OUT.say(topic("Android Construct"))
     OUT.say()
     OUT.say("Backend:")
     OUT.say("  Docker-Android-Pro (budtmo2/docker-android-pro)")
@@ -284,6 +285,62 @@ def cmd_reset(args) -> int:
     OUT.ok("volume removed; next start recreates empty data")
     return EXIT_OK
 
+def interactive_root() -> int:
+    """Lightweight TUI wrapping existing androidvm commands (no destroy)."""
+    ensure()
+    banner()
+    OUT.say()
+    vms = rt.list_vms()
+    OUT.say("VMs")
+    OUT.say("─" * 28)
+    if vms:
+        for i, v in enumerate(vms, 1):
+            name = v.get("name", "?")
+            try:
+                st = rt.status_of(name)
+                state = st.get("state", "?")
+            except Exception:
+                state = "?"
+            OUT.say(f"{i}. {name:<20} {state}")
+    else:
+        OUT.say("(none)")
+
+    def do_launch():
+        name = prompt("VM name")
+        if name:
+            rt.start(validate_name(name))
+            rt.open_gui(name)
+
+    def do_gui():
+        name = prompt("VM name")
+        if name:
+            rt.open_gui(validate_name(name))
+
+    def do_list():
+        cmd_list(argparse.Namespace(json=False))
+
+    def do_status():
+        cmd_status(argparse.Namespace(json=False))
+
+    def do_doctor():
+        cmd_doctor(argparse.Namespace(json=False))
+
+    def do_create():
+        cmd_create(argparse.Namespace(name=None, tag="emulator_15.0", device="Samsung Galaxy S10", no_pull=False, yes=False, json=False))
+
+    menu(
+        "Actions",
+        [
+            ("1", "Launch + open noVNC", do_launch),
+            ("2", "Open noVNC (gui)", do_gui),
+            ("3", "List VMs", do_list),
+            ("4", "Status", do_status),
+            ("5", "Doctor", do_doctor),
+            ("6", "Create VM", do_create),
+        ],
+    )
+    return EXIT_OK
+
 
 def main(argv=None) -> int:
     import sys
@@ -291,8 +348,13 @@ def main(argv=None) -> int:
     if not argv:
         from vmtools.app import apply_global_flags
         apply_global_flags(argparse.Namespace(verbose=False, debug=False, quiet=False, json=False))
-        banner()
-        return EXIT_ACCESS if not access_configured() else EXIT_OK
+        try:
+            return interactive_root()
+        except Fail as exc:
+            OUT.error(str(exc))
+            if exc.hint:
+                OUT.hint(exc.hint)
+            return exc.code
     return app_main(build_parser, argv)
 
 

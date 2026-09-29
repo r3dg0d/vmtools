@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=Linux Construct
+GenericName=Linux VM Manager
+Comment=Linux VMs via QEMU/KVM/libvirt (vmtools) — follow the white rabbit
+Exec=ghostty -e linuxvm tui
+Icon=computer
+Terminal=false
+Categories=System;Emulator;
+Keywords=Matrix;Linux;VM;QEMU;libvirt;vmtools;Construct;

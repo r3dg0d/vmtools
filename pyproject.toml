@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vmtools"
-version = "0.1.0"
+version = "0.1.1"
 description = "windowsvm, linuxvm, androidvm — sibling CLIs to iosvm/macosvm"
 license = "MIT"
 requires-python = ">=3.11"
@@ -14,6 +14,7 @@ dependencies = []
 windowsvm = "windowsvm.cli:main"
 linuxvm = "linuxvm.cli:main"
 androidvm = "androidvm.cli:main"
+vmtools = "vmtools.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vmtools", "src/windowsvm", "src/linuxvm", "src/androidvm"]

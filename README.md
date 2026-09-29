@@ -1,18 +1,27 @@
 # VM Tools
 
-Sibling CLI suite for personal VMs on NixOS, matching the look and feel of `iosvm` / `macosvm`.
+Sibling CLI/TUI suite for personal VMs on NixOS, matching the look and feel of `iosvm` / `macosvm`.
 
 | Command | Role |
 |---------|------|
-| `iosvm` | iOS virtualization (existing apple-vm-tools) |
-| `macosvm` | macOS QEMU/KVM (existing apple-vm-tools) |
-| `windowsvm` | Windows QEMU/KVM/libvirt |
-| `linuxvm` | Linux QEMU/KVM/libvirt |
-| `androidvm` | Docker-Android-Pro manager |
+| `vmtools` | Umbrella TUI / doctor / list (this repo) |
+| `windowsvm` | Windows Construct — QEMU/KVM/libvirt |
+| `linuxvm` | Linux Construct — QEMU/KVM/libvirt |
+| `androidvm` | Android Construct — Docker-Android-Pro |
+| `iosvm` | iOS virtualization (apple-vm-tools) |
+| `macosvm` | macOS QEMU/KVM (apple-vm-tools) |
 
 ## Quick start
 
 ```bash
+vmtools doctor          # read-only host checks (does not stop VMs)
+vmtools list
+vmtools                 # interactive suite menu (or: vmtools tui)
+
+windowsvm tui           # Windows Construct menu
+linuxvm tui
+androidvm tui
+
 windowsvm doctor
 linuxvm doctor
 androidvm status
@@ -30,17 +39,25 @@ windowsvm config libvirt_uri qemu:///system
 
 (System URI needs images in a libvirt-accessible pool such as `/var/lib/libvirt/images`.)
 
+## TUI / GUI
+
+- **Terminal menus** (stdlib, no extra deps): bare `windowsvm` / `linuxvm` / `androidvm` / `vmtools`, or the explicit `tui` subcommand.
+- **Desktop entries** (Matrix-ish Construct names): `VM Construct`, `Windows Construct`, `Linux Construct`, `Android Construct` under `share/applications/` (also `~/.local/share/applications/` on this host). They launch `ghostty -e <tool> tui`.
+- Guest GUIs stay as before: `windowsvm gui` / `linuxvm gui` → virt-manager; `androidvm gui` → noVNC.
+
 ## Install (this machine)
 
-Wrappers are on `PATH` via `~/.local/bin/{windowsvm,linuxvm,androidvm}` pointing at this repo.
+System package (NixOS): `windowsvm` / `linuxvm` / `androidvm` on PATH via `apple-virtualization` → `packages/vmtools`. After a rebuild that picks up ≥0.1.1, `vmtools` is on PATH too.
+
+Dev wrappers (no rebuild):
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"   # → Projects/vmtools via bin/run-tool.py
 ```
 
 ## Android / Docker-Android-Pro
 
-`androidvm` is scaffolded for the Pro backend. Credentials must be provided legitimately:
+`androidvm` manages the Pro backend. Credentials must be provided legitimately:
 
 - env: `ANDROIDVM_DOCKER_USER` + `ANDROIDVM_DOCKER_TOKEN`
 - or file: `~/.config/vmtools/secrets.env` (mode `0600`, never commit)

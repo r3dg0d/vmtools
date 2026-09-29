@@ -19,7 +19,12 @@ from .providers import get, list_providers
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = Parser(prog="linuxvm", description="Manage Linux VMs with QEMU/KVM/libvirt.")
+    p = Parser(
+        prog="linuxvm",
+        description="Linux Construct: manage Linux VMs with QEMU/KVM/libvirt.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Linux Construct — sibling of iosvm/macosvm/windowsvm/androidvm.",
+    )
     add_global_flags(p)
     p.add_argument("--version", action="version", version="linuxvm 0.1.0")
     sub = p.add_subparsers(dest="command", metavar="<command>")
@@ -30,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
         return sp
 
     add("help", "show help", lambda a: (p.print_help(), EXIT_OK)[1])
+    add("tui", "interactive terminal menu", lambda a: interactive_root())
     add("list", "list VMs", cmd_list)
     c = add("create", "create a Linux VM", cmd_create)
     c.add_argument("--name")
@@ -289,7 +295,7 @@ def cmd_config(args):
 def interactive_root() -> int:
     ensure()
     domains = lv.list_domains()
-    OUT.say(); OUT.say(topic("Linux VM Manager")); OUT.say("VMs"); OUT.say("─" * 28)
+    OUT.say(); OUT.say(topic("Linux Construct")); OUT.say("VMs"); OUT.say("─" * 28)
     if domains:
         for i, d in enumerate(domains, 1):
             OUT.say(f"{i}. {d.name:<20} {d.state}")

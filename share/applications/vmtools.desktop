@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=VM Construct
+GenericName=VM Tools Suite
+Comment=Umbrella TUI for windowsvm / linuxvm / androidvm — sibling of iosvm/macosvm
+Exec=ghostty -e vmtools tui
+Icon=computer
+Terminal=false
+Categories=System;Emulator;
+Keywords=Matrix;VM;QEMU;libvirt;Android;vmtools;Construct;Zion;

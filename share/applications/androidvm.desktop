@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=Android Construct
+GenericName=Android VM Manager
+Comment=Android emulators via Docker-Android-Pro (vmtools)
+Exec=ghostty -e androidvm tui
+Icon=phone
+Terminal=false
+Categories=System;Emulator;
+Keywords=Matrix;Android;emulator;Docker;vmtools;Construct;

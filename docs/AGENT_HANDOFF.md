@@ -1,7 +1,7 @@
 # AGENT_HANDOFF — vmtools
 
 ## REPOSITORY
-`/home/neo/Projects/vmtools` (local; not yet pushed)
+`/home/neo/Projects/vmtools` → https://github.com/r3dg0d/vmtools
 
 Commits: see `git log --oneline`
 
@@ -99,3 +99,13 @@ tail -f ~/.local/share/vmtools/logs/virtio-pull.log
 - Virtio-win cached; `windowsvm create` will attach it by default.
 - NixOS system package: handed to nix megaprompt (wire `nix/package.nix` like apple-vm-tools). Until then use `~/.local/bin` wrappers.
 - Rotate Docker Hub PAT that was pasted in chat; refresh `~/.config/vmtools/secrets.env`.
+
+### Phase 5 (2026-09-29 ~03:00 PT) — CLI/TUI/GUI suite
+
+- Umbrella `vmtools` CLI: `tui`, `doctor` (read-only), `list`, `status`, dispatch to siblings.
+- Explicit `tui` on `windowsvm` / `linuxvm` / `androidvm`; android bare invocation now opens interactive menu (was status banner only).
+- Desktop entries: Construct naming + `ghostty -e <tool> tui`; shipped in `share/applications/`.
+- Tests: `tests/test_tui.py` (+ existing core) — 15 unittest OK. No Docker image pulls.
+- Do **not** commit `~/.config/vmtools/secrets.env`. Leave `pixel15` running unless user asks.
+- Nix: bump `packages/vmtools` rev after push; wrap `vmtools` binary; install `.desktop` files. Rebuild optional until system PATH needs 0.1.1.
+- iosvm/macosvm Inferno/OSX-KVM flows untouched.
