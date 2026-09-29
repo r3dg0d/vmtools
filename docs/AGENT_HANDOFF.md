@@ -50,3 +50,36 @@ Full Windows ISO download; full Linux ISO download + guest boot to desktop; Andr
 3. Optional Microsoft media resolver when API allows.
 4. Live download test for Debian netinst.
 5. Desktop entries + completions.
+
+## Status update (2026-09-29 01:57 PT)
+
+### Verified on zionsec
+- `linuxvm`: Debian 13.7.0 netinst ISO cached+SHA256-verified; VM `debian-netinst` created (4c/4G/40G), shut off, disk-only snapshot `pre-install` OK.
+- UEFI internal snapshots fail (pflash NVRAM); `snapshot_create` falls back to `--disk-only`.
+- Default libvirt URI remains `qemu:///session` (home is mode 0700).
+- `androidvm`: Docker login as `budtmo2` OK; Pro repo is `budtmo2/docker-android-pro` (not `budtmo/...`).
+- Instance `pixel15` defined (`emulator_15.0`, viewer 127.0.0.1:6080, adb 6081); image pull may still be in progress.
+- Virtio-win ISO download may still be in progress under `~/.local/share/vmtools/isos/windows/drivers/`.
+- Wrappers: `~/.local/bin/{windowsvm,linuxvm,androidvm}` → system python3 + `bin/run-tool.py`.
+- Latest commit: `linuxvm noninteractive create + android Pro lifecycle`.
+
+### Secrets
+- `~/.config/vmtools/secrets.env` (0600): `ANDROIDVM_DOCKER_USER` / `ANDROIDVM_DOCKER_TOKEN`.
+- PAT was pasted in chat earlier — **rotate** and update secrets.env; never commit.
+
+### Still open
+1. Finish `emulator_15.0` pull → `androidvm launch pixel15` → gui/adb smoke.
+2. Finish virtio-win cache; optional Windows ISO (manual `--iso` / Microsoft page).
+3. Wire `nix/package.nix` into system flake (or hand to nix megaprompt).
+4. Completions/man; push GitHub if requested.
+5. Optional: complete Debian install via `linuxvm gui debian-netinst`.
+
+### Quick checks
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+linuxvm list
+androidvm list
+androidvm images
+tail -f ~/.local/share/vmtools/logs/android-pull-15.log
+tail -f ~/.local/share/vmtools/logs/virtio-pull.log
+```
