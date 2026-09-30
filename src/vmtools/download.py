@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import http.client
 import math
+import re
 import ssl
 import time
 import urllib.error
@@ -70,64 +72,100 @@ def download(
     req = urllib.request.Request(url, headers=headers)
 
     try:
-        resp = urllib.request.urlopen(req, context=ctx, timeout=120)
+        try:
+            resp = urllib.request.urlopen(req, context=ctx, timeout=120)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 416 or not existing:
+                raise
+            exc.close()
+            # A range rejection alone does not prove the staged image is complete.
+            if expected_sha256 and verify_sha256(part, expected_sha256):
+                part.replace(dest)
+                OUT.ok(f"cached and verified: {dest}")
+                return dest
+            req = urllib.request.Request(url, headers={"User-Agent": headers["User-Agent"]})
+            resp = urllib.request.urlopen(req, context=ctx, timeout=120)
+            existing = 0
     except urllib.error.HTTPError as exc:
-        if exc.code == 416 and part.is_file():
-            part.replace(dest)
-            return _maybe_verify(dest, expected_sha256)
+        exc.close()
         raise Fail(f"download failed: HTTP {exc.code}", EXIT_DOWNLOAD, url) from exc
     except urllib.error.URLError as exc:
         raise Fail(f"download failed: {exc.reason}", EXIT_DOWNLOAD) from exc
 
-    status = getattr(resp, "status", None) or resp.getcode()
-    mode = "ab" if status == 206 and existing else "wb"
-    if mode == "wb":
-        existing = 0
-
-    total_hdr = resp.headers.get("Content-Length")
-    total_n: int | None
-    if total_hdr and status == 206:
-        total_n = int(total_hdr) + existing
-    elif total_hdr:
-        total_n = int(total_hdr)
-    else:
-        total_n = None
+    # Validate framing before opening the staging file, preserving it on bad ranges.
+    try:
+        status = getattr(resp, "status", None) or resp.getcode()
+        if status not in (200, 206):
+            raise Fail(f"download failed: unexpected HTTP {status}", EXIT_DOWNLOAD)
+        mode = "ab" if status == 206 and existing else "wb"
+        if status == 200:
+            existing = 0
+        total_hdr = resp.headers.get("Content-Length")
+        response_n = int(total_hdr) if total_hdr is not None else None
+        if response_n is not None and response_n < 0:
+            raise ValueError("negative Content-Length")
+        total_n = response_n
+        if status == 206:
+            match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", resp.headers.get("Content-Range", ""))
+            if not match:
+                raise ValueError("missing or invalid Content-Range")
+            start, end, total_n = map(int, match.groups())
+            if start != existing or end < start or end >= total_n:
+                raise ValueError("Content-Range does not match staged download")
+            range_n = end - start + 1
+            if response_n is not None and response_n != range_n:
+                raise ValueError("Content-Length does not match Content-Range")
+            response_n = range_n
+    except (ValueError, Fail) as exc:
+        resp.close()
+        if isinstance(exc, Fail):
+            raise
+        raise Fail(f"download failed: {exc}", EXIT_DOWNLOAD) from exc
 
     OUT.step(f"Downloading {label}")
     started = time.monotonic()
     written = existing
     last_draw = 0.0
 
-    with open(part, mode) as fh, resp:
-        while True:
-            chunk = resp.read(1024 * 256)
-            if not chunk:
-                break
-            fh.write(chunk)
-            written += len(chunk)
-            now = time.monotonic()
-            if progress and not OUT.quiet and not OUT.json and (now - last_draw) >= 0.2:
-                last_draw = now
-                elapsed = max(now - started, 1e-3)
-                speed = (written - existing) / elapsed
-                pct = (written / total_n * 100) if total_n else 0.0
-                bar_w = 24
-                filled = int(bar_w * written / total_n) if total_n else 0
-                filled = min(bar_w, filled)
-                bar = "█" * filled + "░" * (bar_w - filled)
-                eta = ((total_n - written) / speed) if total_n and speed > 0 else -1
-                msg = (
-                    f"{chr(13)}{bar} {pct:5.1f}%  {_format_bytes(written)}"
-                    + (f" / {_format_bytes(total_n)}" if total_n else "")
-                    + f"  {_format_bytes(speed)}/s  ETA {_format_eta(eta)}   "
-                )
-                print(msg, end="", flush=True)
+    try:
+        with open(part, mode) as fh, resp:
+            while True:
+                chunk = resp.read(1024 * 256)
+                if not chunk:
+                    break
+                fh.write(chunk)
+                written += len(chunk)
+                now = time.monotonic()
+                if progress and not OUT.quiet and not OUT.json and (now - last_draw) >= 0.2:
+                    last_draw = now
+                    elapsed = max(now - started, 1e-3)
+                    speed = (written - existing) / elapsed
+                    pct = (written / total_n * 100) if total_n else 0.0
+                    bar_w = 24
+                    filled = int(bar_w * written / total_n) if total_n else 0
+                    filled = min(bar_w, filled)
+                    bar = "█" * filled + "░" * (bar_w - filled)
+                    eta = ((total_n - written) / speed) if total_n and speed > 0 else -1
+                    msg = (
+                        f"{chr(13)}{bar} {pct:5.1f}%  {_format_bytes(written)}"
+                        + (f" / {_format_bytes(total_n)}" if total_n else "")
+                        + f"  {_format_bytes(speed)}/s  ETA {_format_eta(eta)}   "
+                    )
+                    print(msg, end="", flush=True)
+    except (OSError, http.client.HTTPException) as exc:
+        raise Fail("download interrupted; staging file retained for retry", EXIT_DOWNLOAD) from exc
     if progress and not OUT.quiet and not OUT.json:
         print()
 
+    if ((response_n is not None and written - existing != response_n)
+            or (total_n is not None and written != total_n)):
+        raise Fail("download incomplete; staging file retained for retry", EXIT_DOWNLOAD)
+
+    # Verify the staging file before replacing any existing destination.
+    _maybe_verify(part, expected_sha256)
     part.replace(dest)
     OUT.ok(f"DOWNLOAD COMPLETE ({_format_bytes(dest.stat().st_size)})")
-    return _maybe_verify(dest, expected_sha256)
+    return dest
 
 
 def _maybe_verify(dest: Path, expected_sha256: str | None) -> Path:
