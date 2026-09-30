@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import http.client
+import json
 import math
 import re
 import ssl
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -24,6 +27,57 @@ class _HTTPSRedirectHandler(urllib.request.HTTPRedirectHandler):
             fp.close()
             raise Fail("download failed: refusing non-HTTPS redirect", EXIT_DOWNLOAD)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _url_key(url: str) -> str:
+    # Do not persist raw URLs, which can contain signed credentials or query data.
+    return hashlib.sha256(url.encode()).hexdigest()
+
+
+def _strong_etag(value: str | None) -> str | None:
+    if value and len(value) <= 4096 and re.fullmatch(r'"[\x21\x23-\x7e\x80-\xff]*"', value):
+        return value
+    return None
+
+
+def _resume_state(path: Path, url: str) -> dict | None:
+    try:
+        if path.stat().st_size > 8192:
+            return None
+        state = json.loads(path.read_text())
+        if (isinstance(state, dict) and state.get("version") == 1
+                and state.get("url") == _url_key(url)
+                and isinstance(state.get("final_url"), str)
+                and isinstance(state.get("etag"), str) and _strong_etag(state["etag"])):
+            return state
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _save_resume_state(path: Path, url: str, final_url: str, etag: str | None) -> None:
+    if not etag:
+        path.unlink(missing_ok=True)
+        return
+    # Atomic replacement and private permissions avoid incomplete metadata and
+    # prevent exposing even the opaque ETag to other users.
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, prefix=path.name + ".", delete=False) as fh:
+        temporary = Path(fh.name)
+        try:
+            json.dump({"version": 1, "url": _url_key(url), "final_url": _url_key(final_url), "etag": etag}, fh)
+            fh.flush()
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
+def _discard_resume_state(path: Path) -> None:
+    # Once the part is gone, stale metadata cannot cause a resume; cleanup must
+    # not turn a successful promotion or checksum error into a different error.
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def _format_bytes(n: float) -> str:
@@ -65,6 +119,7 @@ def download(
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
+    metadata = part.with_name(part.name + ".json")
     label = label or dest.name
 
     if dest.is_file() and expected_sha256 and verify_sha256(dest, expected_sha256):
@@ -75,9 +130,15 @@ def download(
         return dest
 
     existing = part.stat().st_size if part.is_file() else 0
+    state = _resume_state(metadata, url) if existing else None
+    if existing and not state and not expected_sha256:
+        # Keep old bytes until a valid fresh response is ready to replace them.
+        existing = 0
     headers = {"User-Agent": "vmtools/0.1 (NixOS host suite)"}
     if existing:
         headers["Range"] = f"bytes={existing}-"
+        if state:
+            headers["If-Range"] = state["etag"]
 
     ctx = ssl.create_default_context()
     opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx), _HTTPSRedirectHandler())
@@ -93,6 +154,7 @@ def download(
             # A range rejection alone does not prove the staged image is complete.
             if expected_sha256 and verify_sha256(part, expected_sha256):
                 part.replace(dest)
+                _discard_resume_state(metadata)
                 OUT.ok(f"cached and verified: {dest}")
                 return dest
             req = urllib.request.Request(url, headers={"User-Agent": headers["User-Agent"]})
@@ -109,6 +171,11 @@ def download(
         status = getattr(resp, "status", None) or resp.getcode()
         if status not in (200, 206):
             raise Fail(f"download failed: unexpected HTTP {status}", EXIT_DOWNLOAD)
+        final_url = resp.geturl()
+        etag = _strong_etag(resp.headers.get("ETag"))
+        if status == 206 and existing and state:
+            if etag != state["etag"] or _url_key(final_url) != state["final_url"]:
+                raise Fail("download failed: resumed source identity changed; staging file retained", EXIT_DOWNLOAD)
         mode = "ab" if status == 206 and existing else "wb"
         if status == 200:
             existing = 0
@@ -140,7 +207,12 @@ def download(
     last_draw = 0.0
 
     try:
-        with open(part, mode) as fh, resp:
+        with resp, open(part, mode) as fh:
+            # Truncate a fresh staging file before publishing its new validator.
+            # A crash cannot pair old bytes with metadata from a new response.
+            # Hash-backed legacy resumes have an unvalidated prefix. Do not
+            # attach the tail's ETag to it before the whole-file hash is checked.
+            _save_resume_state(metadata, url, final_url, etag if mode == "wb" or state else None)
             while True:
                 chunk = resp.read(1024 * 256)
                 if not chunk:
@@ -174,8 +246,13 @@ def download(
         raise Fail("download incomplete; staging file retained for retry", EXIT_DOWNLOAD)
 
     # Verify the staging file before replacing any existing destination.
-    _maybe_verify(part, expected_sha256)
+    try:
+        _maybe_verify(part, expected_sha256)
+    except Fail:
+        _discard_resume_state(metadata)
+        raise
     part.replace(dest)
+    _discard_resume_state(metadata)
     OUT.ok(f"DOWNLOAD COMPLETE ({_format_bytes(dest.stat().st_size)})")
     return dest
 
