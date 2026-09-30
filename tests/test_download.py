@@ -28,7 +28,8 @@ def serve(monkeypatch, *responses):
             raise response
         return response
 
-    monkeypatch.setattr("vmtools.download.urllib.request.urlopen", open_url)
+    from types import SimpleNamespace
+    monkeypatch.setattr("vmtools.download.urllib.request.build_opener", lambda *handlers: SimpleNamespace(open=open_url))
     return requests
 
 
@@ -154,3 +155,68 @@ def test_verified_success_replaces_destination(tmp_path, monkeypatch):
              expected_sha256=hashlib.sha256(b"new").hexdigest(), progress=False)
     assert dest.read_bytes() == b"new"
     assert not dest.with_suffix(".iso.part").exists()
+
+
+def redirect_transport(monkeypatch, locations):
+    """Exercise urllib's real redirect pipeline without opening network sockets."""
+    import email.message
+    import urllib.request
+
+    requests = []
+    responses = []
+
+    class Transport(urllib.request.HTTPSHandler):
+        handler_order = 100
+
+        def https_open(self, request):
+            requests.append(request.full_url)
+            headers = email.message.Message()
+            if locations:
+                status, location = locations.pop(0)
+                headers['Location'] = location
+                body = b''
+            else:
+                status, body = 200, b'image'
+                headers['Content-Length'] = str(len(body))
+            response = Response(body, status=status, headers=headers)
+            response.code = status
+            response.msg = 'test response'
+            response.geturl = lambda: request.full_url
+            response.info = lambda: headers
+            responses.append(response)
+            return response
+
+        http_open = https_open
+
+    monkeypatch.setattr(urllib.request, 'HTTPSHandler', Transport)
+    monkeypatch.setattr(urllib.request, 'getproxies', lambda: {})
+    return requests, responses
+
+
+@pytest.mark.parametrize('status', [301, 302, 303, 307, 308])
+def test_redirect_cannot_downgrade_https(tmp_path, monkeypatch, status):
+    requests, responses = redirect_transport(monkeypatch, [(status, 'http://example.org/image.iso')])
+    dest = tmp_path / 'image.iso'
+    part = dest.with_suffix('.iso.part')
+    part.write_bytes(b'previous partial')
+    with pytest.raises(Fail) as exc:
+        download('https://example.org/image.iso', dest, progress=False)
+    assert exc.value.code == EXIT_DOWNLOAD
+    assert requests == ['https://example.org/image.iso']
+    assert responses[0].closed
+    assert part.read_bytes() == b'previous partial'
+    assert not dest.exists()
+
+
+def test_https_and_relative_redirects_still_download(tmp_path, monkeypatch):
+    requests, responses = redirect_transport(monkeypatch, [
+        (302, 'https://cdn.example.org/start'), (307, '/image.iso'),
+    ])
+    dest = tmp_path / 'image.iso'
+    download('https://example.org/image.iso', dest, progress=False)
+    assert requests == [
+        'https://example.org/image.iso', 'https://cdn.example.org/start',
+        'https://cdn.example.org/image.iso',
+    ]
+    assert dest.read_bytes() == b'image'
+    assert all(response.closed for response in responses)

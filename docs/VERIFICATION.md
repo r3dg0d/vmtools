@@ -2,6 +2,11 @@
 
 States: `VERIFIED AGAINST PUBLISHER`, `VERIFIED AGAINST USER HASH`, `LOCAL HASH ONLY`, `UNVERIFIED`.
 
+The source URL and every followed redirect must use HTTPS. Redirects to HTTP
+are rejected before contacting the target; existing staging files are preserved.
+HTTPS redirects (including relative redirects to the same HTTPS origin) work
+normally.
+
 Downloads stage as `*.iso.part` until complete. Advertised response lengths and
 resume ranges are checked before the file is promoted. Incomplete transfers retain
 the staging file for retry and exit with download error code `4`.

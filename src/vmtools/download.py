@@ -8,11 +8,22 @@ import re
 import ssl
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
 from .checksum import verify_sha256
 from .ui import EXIT_CHECKSUM, EXIT_DOWNLOAD, OUT, Fail
+
+
+class _HTTPSRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Enforce HTTPS at every redirect, before contacting the next endpoint."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urllib.parse.urlsplit(newurl).scheme.lower() != "https":
+            fp.close()
+            raise Fail("download failed: refusing non-HTTPS redirect", EXIT_DOWNLOAD)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _format_bytes(n: float) -> str:
@@ -69,11 +80,12 @@ def download(
         headers["Range"] = f"bytes={existing}-"
 
     ctx = ssl.create_default_context()
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx), _HTTPSRedirectHandler())
     req = urllib.request.Request(url, headers=headers)
 
     try:
         try:
-            resp = urllib.request.urlopen(req, context=ctx, timeout=120)
+            resp = opener.open(req, timeout=120)
         except urllib.error.HTTPError as exc:
             if exc.code != 416 or not existing:
                 raise
@@ -84,7 +96,7 @@ def download(
                 OUT.ok(f"cached and verified: {dest}")
                 return dest
             req = urllib.request.Request(url, headers={"User-Agent": headers["User-Agent"]})
-            resp = urllib.request.urlopen(req, context=ctx, timeout=120)
+            resp = opener.open(req, timeout=120)
             existing = 0
     except urllib.error.HTTPError as exc:
         exc.close()
