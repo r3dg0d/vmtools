@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import subprocess
 from pathlib import Path
 from typing import Any
 
-from vmtools.config import validate_name, write_json, read_json
+from vmtools.config import read_json, validate_name, write_json
 from vmtools.layout import LAYOUT, ensure
 from vmtools.proc import run, which
-from vmtools.ui import EXIT_BACKEND, EXIT_NOT_FOUND, EXIT_STATE, Fail, OUT
+from vmtools.ui import EXIT_BACKEND, EXIT_NOT_FOUND, EXIT_STATE, OUT, Fail
 
 from .access import require_access
 from .images import DEFAULT_REPO, image_ref

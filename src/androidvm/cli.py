@@ -7,16 +7,18 @@ import json
 import os
 from pathlib import Path
 
-from vmtools.app import Parser, add_global_flags, main as app_main, topic
+from vmtools.app import Parser, add_global_flags, topic
+from vmtools.app import main as app_main
 from vmtools.config import validate_name
-from vmtools.layout import LAYOUT, config, ensure
+from vmtools.layout import config, ensure
 from vmtools.menu import confirm, menu, prompt
 from vmtools.proc import which
-from vmtools.ui import EXIT_ACCESS, EXIT_OK, EXIT_PREREQ, Fail, OUT, STYLE, SYM_BAD, SYM_OK
+from vmtools.ui import EXIT_ACCESS, EXIT_OK, EXIT_PREREQ, OUT, STYLE, SYM_BAD, SYM_OK, Fail
 
-from .access import access_configured, credentials, docker_login, require_access
+from . import __version__
 from . import images as img
 from . import runtime as rt
+from .access import access_configured, credentials, docker_login, require_access
 from .ports import allocate
 
 
@@ -26,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Android Construct: Docker-Android-Pro emulators (requires legitimate Pro access).",
     )
     add_global_flags(p)
-    p.add_argument("--version", action="version", version="androidvm 0.1.0")
+    p.add_argument("--version", action="version", version=f"androidvm {__version__}")
     sub = p.add_subparsers(dest="command", metavar="<command>")
 
     def add(name, help, handler):

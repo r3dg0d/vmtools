@@ -6,14 +6,16 @@ import argparse
 import json
 from pathlib import Path
 
-from vmtools.app import Parser, add_global_flags, main as app_main, topic
 from vmtools import libvirt as lv
+from vmtools.app import Parser, add_global_flags, topic
+from vmtools.app import main as app_main
 from vmtools.config import validate_name
 from vmtools.doctor import doctor_libvirt
 from vmtools.layout import LAYOUT, config, ensure
 from vmtools.menu import confirm, menu, prompt
-from vmtools.ui import EXIT_CHECKSUM, EXIT_OK, EXIT_USAGE, Fail, OUT
+from vmtools.ui import EXIT_CHECKSUM, EXIT_OK, OUT, Fail
 
+from . import __version__
 from .create import interactive_create
 from .providers import get, list_providers
 
@@ -26,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Linux Construct — sibling of iosvm/macosvm/windowsvm/androidvm.",
     )
     add_global_flags(p)
-    p.add_argument("--version", action="version", version="linuxvm 0.1.0")
+    p.add_argument("--version", action="version", version=f"linuxvm {__version__}")
     sub = p.add_subparsers(dest="command", metavar="<command>")
 
     def add(name, help, handler):

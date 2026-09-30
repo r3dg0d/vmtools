@@ -3,11 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from vmtools.checksum import sha256_file, verification_label, verify_sha256
-from vmtools.config import validate_name, write_json, read_json, NAME_RE
-from vmtools.ui import Fail
-from androidvm.ports import allocate
 from androidvm.access import access_configured
+from androidvm.ports import allocate
+from vmtools.checksum import sha256_file, verification_label, verify_sha256
+from vmtools.config import read_json, validate_name, write_json
+from vmtools.ui import Fail
 
 
 class TestNames(unittest.TestCase):

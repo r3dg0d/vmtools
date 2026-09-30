@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,7 @@ def _path(media_id: str) -> Path:
 def save_media(meta: dict[str, Any]) -> Path:
     ensure()
     meta = dict(meta)
-    meta.setdefault("downloaded_at", datetime.now(timezone.utc).isoformat())
+    meta.setdefault("downloaded_at", datetime.now(UTC).isoformat())
     path = _path(str(meta["id"]))
     write_json(path, meta)
     return path

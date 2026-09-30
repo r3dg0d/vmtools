@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import argparse
 import signal
-import sys
-from typing import Callable, Sequence
+from collections.abc import Callable, Sequence
 
 from .ui import EXIT_ERROR, EXIT_OK, EXIT_USAGE, OUT, STYLE, Fail
 

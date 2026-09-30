@@ -9,7 +9,7 @@ from vmtools.config import validate_name, write_json
 from vmtools.download import download
 from vmtools.layout import LAYOUT, config, ensure
 from vmtools.menu import confirm, prompt
-from vmtools.ui import EXIT_USAGE, Fail, OUT
+from vmtools.ui import EXIT_USAGE, OUT, Fail
 
 from .providers import get, list_providers
 
@@ -79,7 +79,7 @@ def interactive_create(args) -> int:
     ram = int(getattr(args, "ram", None) or (cfg.get("linux_default_ram_gib") if noninteractive else prompt("RAM GiB", str(cfg.get("linux_default_ram_gib")))))
     disk = int(getattr(args, "disk", None) or (cfg.get("linux_default_disk_gib") if noninteractive else prompt("Disk GiB", str(cfg.get("linux_default_disk_gib")))))
     network = getattr(args, "network", None) or ("default" if noninteractive else prompt("Network (default|vm-lab|isolated)", "default"))
-    launch = False if getattr(args, "no_launch", False) else (True if noninteractive and getattr(args, "yes", False) and not getattr(args, "no_launch", False) else True)
+    launch = not getattr(args, "no_launch", False)
     if noninteractive:
         launch = not bool(getattr(args, "no_launch", False))
     elif not getattr(args, "yes", False):

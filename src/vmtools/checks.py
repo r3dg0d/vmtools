@@ -12,7 +12,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from .proc import which
 from .ui import OUT, STYLE, SYM_BAD, SYM_OK, SYM_WARN

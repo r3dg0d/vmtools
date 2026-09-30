@@ -6,14 +6,16 @@ import argparse
 import json
 from pathlib import Path
 
-from vmtools.app import Parser, add_global_flags, main as app_main, topic
 from vmtools import libvirt as lv
+from vmtools.app import Parser, add_global_flags, topic
+from vmtools.app import main as app_main
 from vmtools.config import validate_name
 from vmtools.doctor import doctor_libvirt
 from vmtools.layout import LAYOUT, config, ensure
 from vmtools.menu import confirm, menu, prompt
-from vmtools.ui import EXIT_ACCESS, EXIT_CHECKSUM, EXIT_OK, EXIT_USAGE, Fail, OUT
+from vmtools.ui import EXIT_CHECKSUM, EXIT_OK, EXIT_USAGE, OUT, Fail
 
+from . import __version__
 from .catalog import catalog
 from .create import interactive_create
 
@@ -26,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Windows Construct — sibling of iosvm/macosvm/linuxvm/androidvm. Official Microsoft media only.",
     )
     add_global_flags(p)
-    p.add_argument("--version", action="version", version="windowsvm 0.1.0")
+    p.add_argument("--version", action="version", version=f"windowsvm {__version__}")
     sub = p.add_subparsers(dest="command", metavar="<command>")
 
     def add(name, help, handler):
@@ -108,8 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     add("doctor", "check host prerequisites", cmd_doctor)
     add("config", "show or set config", cmd_config)
-    cfg = sub.choices["config"] if False else None
-    # re-get config parser
+    # the config command takes an optional key/value
     for sp in sub._name_parser_map.values():
         if sp.prog.endswith("config"):
             sp.add_argument("key", nargs="?")

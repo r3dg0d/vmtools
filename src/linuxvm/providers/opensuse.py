@@ -41,7 +41,7 @@ class OpenSUSEProvider(DistroProvider):
         if not abs_urls:
             from vmtools.ui import EXIT_DOWNLOAD, Fail
             raise Fail(
-                f"no ISO links found for opensuse",
+                "no ISO links found for opensuse",
                 EXIT_DOWNLOAD,
                 f"open {self.SOURCE} and use --iso",
             )

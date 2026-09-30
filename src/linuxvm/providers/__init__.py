@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from .base import DistroProvider, MediaInfo
+from .arch import ArchProvider
+from .base import DistroProvider, MediaInfo  # noqa: F401  (re-exported for callers)
 from .cachyos import CachyOSProvider
 from .debian import DebianProvider
 from .fedora import FedoraProvider
-from .nixos import NixOSProvider
-from .ubuntu import UbuntuProvider
-from .arch import ArchProvider
-from .mint import MintProvider
-from .opensuse import OpenSUSEProvider
 from .kali import KaliProvider
+from .mint import MintProvider
+from .nixos import NixOSProvider
+from .opensuse import OpenSUSEProvider
+from .ubuntu import UbuntuProvider
 
 PROVIDERS: dict[str, DistroProvider] = {}
 

@@ -10,13 +10,13 @@ import argparse
 import shutil
 import subprocess
 import sys
-from typing import Sequence
+from collections.abc import Sequence
 
 from . import __version__
-from .app import Parser, add_global_flags, apply_global_flags, main as app_main, topic
+from .app import Parser, add_global_flags, apply_global_flags, topic
+from .app import main as app_main
 from .menu import menu
-from .ui import EXIT_OK, EXIT_PREREQ, EXIT_USAGE, Fail, OUT, STYLE
-
+from .ui import EXIT_OK, OUT, STYLE, Fail
 
 SIBLINGS = (
     ("windowsvm", "Windows Construct (QEMU/KVM/libvirt)"),

@@ -41,7 +41,7 @@ class KaliProvider(DistroProvider):
         if not abs_urls:
             from vmtools.ui import EXIT_DOWNLOAD, Fail
             raise Fail(
-                f"no ISO links found for kali",
+                "no ISO links found for kali",
                 EXIT_DOWNLOAD,
                 f"open {self.SOURCE} and use --iso",
             )

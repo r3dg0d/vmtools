@@ -8,7 +8,7 @@ from vmtools import libvirt as lv
 from vmtools.config import validate_name
 from vmtools.layout import LAYOUT, config, ensure
 from vmtools.menu import confirm, prompt
-from vmtools.ui import EXIT_USAGE, Fail, OUT
+from vmtools.ui import EXIT_USAGE, OUT, Fail
 
 from .catalog import VIRTIO_WIN, catalog
 
@@ -34,7 +34,6 @@ def interactive_create(args) -> int:
     choice = prompt("Selection", "1")
     iso: Path | None = None
     media_id = "custom"
-    expected_hash = None
 
     try:
         idx = int(choice)
@@ -72,7 +71,6 @@ def interactive_create(args) -> int:
         sha = prompt("Expected SHA-256 (required for verify, empty = LOCAL HASH ONLY)")
         iso = download(url, dest, expected_sha256=sha or None, label="Custom Windows ISO")
         media_id = "custom-url"
-        expected_hash = sha or None
 
     if not iso or not iso.is_file():
         raise Fail(f"ISO not found: {iso}", EXIT_USAGE)

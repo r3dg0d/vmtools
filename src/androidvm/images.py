@@ -8,9 +8,9 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from .access import credentials, require_access
-from vmtools.ui import EXIT_ACCESS, EXIT_DOWNLOAD, Fail, OUT
+from vmtools.ui import EXIT_ACCESS, EXIT_DOWNLOAD, Fail
 
+from .access import credentials, require_access
 
 DEFAULT_REPO = "budtmo2/docker-android-pro"
 

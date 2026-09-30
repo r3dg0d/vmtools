@@ -8,15 +8,13 @@ import unittest
 from contextlib import redirect_stdout
 from unittest import mock
 
-from vmtools.cli import build_parser, cmd_status, SIBLINGS
-from vmtools.menu import menu, prompt, confirm
+from vmtools.cli import SIBLINGS, build_parser, cmd_status
+from vmtools.menu import confirm, menu, prompt
 
 
 class TestUmbrellaParser(unittest.TestCase):
     def test_subcommands(self):
         p = build_parser()
-        names = {a.dest for a in p._subparsers._group_actions[0]._choices_actions}  # type: ignore[attr-defined]
-        # argparse stores differently; use parse
         for cmd in ("tui", "doctor", "list", "status", "help", "windowsvm", "linuxvm", "androidvm"):
             args = p.parse_args([cmd] if cmd != "windowsvm" else [cmd, "doctor"])
             self.assertEqual(args.command, cmd)

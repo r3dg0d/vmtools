@@ -16,8 +16,9 @@ import shutil
 import sys
 import threading
 import time
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from typing import Any, Iterator, Sequence
+from typing import Any
 
 # Exit codes. Anything a caller might branch on gets its own value.
 EXIT_OK = 0

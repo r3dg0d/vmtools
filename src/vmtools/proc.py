@@ -9,8 +9,9 @@ import signal
 import socket
 import subprocess
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from .ui import OUT, Fail
 
@@ -121,7 +122,7 @@ class QMP:
         self.sock: socket.socket | None = None
         self._buf = b""
 
-    def __enter__(self) -> "QMP":
+    def __enter__(self) -> QMP:
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.settimeout(self.timeout)
         try:

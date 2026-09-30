@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import ssl
 import time
 import urllib.error
@@ -9,7 +10,7 @@ import urllib.request
 from pathlib import Path
 
 from .checksum import verify_sha256
-from .ui import EXIT_CHECKSUM, EXIT_DOWNLOAD, Fail, OUT
+from .ui import EXIT_CHECKSUM, EXIT_DOWNLOAD, OUT, Fail
 
 
 def _format_bytes(n: float) -> str:
@@ -23,7 +24,7 @@ def _format_bytes(n: float) -> str:
 
 
 def _format_eta(seconds: float) -> str:
-    if seconds < 0 or seconds != seconds or seconds == float("inf"):
+    if seconds < 0 or math.isnan(seconds) or math.isinf(seconds):
         return "--:--"
     s = int(seconds)
     h, s = divmod(s, 3600)

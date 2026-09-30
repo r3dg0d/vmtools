@@ -17,8 +17,7 @@ import subprocess
 from pathlib import Path
 
 from vmtools.layout import LAYOUT, ensure
-from vmtools.ui import EXIT_ACCESS, Fail, OUT
-
+from vmtools.ui import EXIT_ACCESS, OUT, Fail
 
 STATE_FILE = "android/access.json"
 

@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import json
 import re
 import shlex
 import subprocess
-import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 from .layout import config as load_config
 from .proc import run
-from .ui import EXIT_NOT_FOUND, EXIT_PREREQ, EXIT_STATE, Fail, OUT
+from .ui import EXIT_NOT_FOUND, EXIT_PREREQ, EXIT_STATE, OUT, Fail
 
 
 def uri() -> str:
