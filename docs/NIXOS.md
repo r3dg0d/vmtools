@@ -22,45 +22,14 @@ OVMF comes from the QEMU package on this host (already verified by
 
 ## Suggested system wire-up (mirror apple-vm-tools)
 
-1. Vendor or fetch the src. Easiest while developing: point `src` at
-   `/home/neo/Projects/vmtools`. For a clean flake, pin a GitHub fetch:
+1. Call `nix/package.nix`. That file is the only package definition
+   (version string lives there; currently 0.1.2). `nix/vm-tools.nix`
+   only re-exports it. Do not paste a second expression with its own
+   version:
 
    ```nix
-   # packages/vmtools/default.nix  (drop next to packages/apple/)
-   { lib, python3Packages, makeWrapper, qemu_kvm, libvirt, virt-manager,
-     virt-viewer, guestfs-tools, swtpm, docker-client, coreutils, curl }:
-   python3Packages.buildPythonApplication {
-     pname = "vmtools";
-     version = "0.1.0";
-     pyproject = true;
-     src = /home/neo/Projects/vmtools;  # or fetchFromGitHub { owner="r3dg0d"; repo="vmtools"; ... }
-     build-system = [ python3Packages.hatchling ];
-     nativeBuildInputs = [ makeWrapper ];
-     dependencies = [];
-     doCheck = false;
-     postFixup = ''
-       for prog in windowsvm linuxvm androidvm; do
-         wrapProgram $out/bin/$prog \
-           --prefix PATH : ${lib.makeBinPath [
-             qemu_kvm libvirt virt-manager virt-viewer guestfs-tools
-             swtpm docker-client coreutils curl
-           ]} \
-           --set-default VMTOOLS_DOC $out/share/doc/vmtools
-       done
-     '';
-     meta = {
-       description = "windowsvm, linuxvm, androidvm CLI suite";
-       license = lib.licenses.mit;
-       platforms = lib.platforms.linux;
-     };
-   }
-   ```
-
-2. In `modules/apple-virtualization.nix` (or a new `modules/vmtools.nix`
-   imported by the host flake):
-
-   ```nix
-   vmTools = pkgs.callPackage ../packages/vmtools { };
+   # modules/apple-virtualization.nix (or a new modules/vmtools.nix)
+   vmTools = pkgs.callPackage /home/neo/Projects/vmtools/nix/package.nix { };
    # ...
    environment.systemPackages = [
      # ...
@@ -68,7 +37,11 @@ OVMF comes from the QEMU package on this host (already verified by
    ];
    ```
 
-3. `nixos-rebuild switch`. Confirm:
+   For a flake pin, `fetchFromGitHub` the tag you want and override `src`.
+   Prefetch the narHash; do not invent it. A local path is enough while
+   developing.
+
+2. `nixos-rebuild switch`. Confirm:
 
    ```bash
    which windowsvm linuxvm androidvm
