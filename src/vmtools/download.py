@@ -15,6 +15,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from . import __version__
 from .checksum import verify_sha256
 from .ui import EXIT_CHECKSUM, EXIT_DOWNLOAD, OUT, Fail
 
@@ -32,6 +33,18 @@ class _HTTPSRedirectHandler(urllib.request.HTTPRedirectHandler):
 def _url_key(url: str) -> str:
     # Do not persist raw URLs, which can contain signed credentials or query data.
     return hashlib.sha256(url.encode()).hexdigest()
+
+
+def _public_url(url: str) -> str:
+    """Scheme, host, and path only. Drop userinfo, query, and fragment."""
+    parts = urllib.parse.urlsplit(url)
+    hostname = parts.hostname or ""
+    if ":" in hostname:
+        hostname = f"[{hostname}]"
+    netloc = hostname
+    if parts.port:
+        netloc = f"{hostname}:{parts.port}"
+    return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", ""))
 
 
 def _strong_etag(value: str | None) -> str | None:
@@ -112,7 +125,7 @@ def download(
     """Download url to dest via HTTPS. Stages as dest.name + '.part' until complete."""
     if not url.startswith("https://"):
         raise Fail(
-            f"refusing non-HTTPS URL: {url}",
+            f"refusing non-HTTPS URL: {_public_url(url)}",
             EXIT_DOWNLOAD,
             "only https:// sources are allowed",
         )
@@ -134,7 +147,7 @@ def download(
     if existing and not state and not expected_sha256:
         # Keep old bytes until a valid fresh response is ready to replace them.
         existing = 0
-    headers = {"User-Agent": "vmtools/0.1 (NixOS host suite)"}
+    headers = {"User-Agent": f"vmtools/{__version__} (NixOS host suite)"}
     if existing:
         headers["Range"] = f"bytes={existing}-"
         if state:
@@ -162,7 +175,7 @@ def download(
             existing = 0
     except urllib.error.HTTPError as exc:
         exc.close()
-        raise Fail(f"download failed: HTTP {exc.code}", EXIT_DOWNLOAD, url) from exc
+        raise Fail(f"download failed: HTTP {exc.code}", EXIT_DOWNLOAD, _public_url(url)) from exc
     except urllib.error.URLError as exc:
         raise Fail(f"download failed: {exc.reason}", EXIT_DOWNLOAD) from exc
 

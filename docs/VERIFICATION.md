@@ -7,6 +7,9 @@ are rejected before contacting the target; existing staging files are preserved.
 HTTPS redirects (including relative redirects to the same HTTPS origin) work
 normally.
 
+HTTP error hints show only scheme, host, and path. Userinfo, query strings,
+and fragments are omitted so signed credentials are not written to the terminal.
+
 Downloads stage as `*.iso.part` until complete. Advertised response lengths and
 resume ranges are checked before the file is promoted. Incomplete transfers retain
 the staging file for retry and exit with download error code `4`.

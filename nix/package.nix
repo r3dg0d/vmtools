@@ -4,7 +4,7 @@
   guestfs-tools, swtpm, OVMFFull, docker-client, coreutils, curl }:
 python3Packages.buildPythonApplication {
   pname = "vmtools";
-  version = "0.1.1";
+  version = "0.1.2";
   pyproject = true;
   src = ../.;
   build-system = [ python3Packages.hatchling ];

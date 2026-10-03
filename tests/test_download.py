@@ -406,3 +406,36 @@ def test_hash_backed_unknown_prefix_cannot_acquire_tail_validator(tmp_path, monk
     assert requests[1].get_header("Range") is None
     assert not dest.exists()
     assert part.read_bytes() == b"olde"
+
+
+def test_http_error_hint_redacts_url_secrets(tmp_path, monkeypatch):
+    dest = tmp_path / "image.iso"
+    url = "https://user:secret@example.org:8443/image.iso?token=private-query#frag"
+    serve(monkeypatch, urllib.error.HTTPError(url, 403, "denied", {}, None))
+    with pytest.raises(Fail) as exc:
+        download(url, dest, progress=False)
+    assert exc.value.code == EXIT_DOWNLOAD
+    assert exc.value.hint == "https://example.org:8443/image.iso"
+    shown = f"{exc.value} {exc.value.hint}"
+    assert "secret" not in shown
+    assert "private-query" not in shown
+    assert "user" not in shown
+
+
+def test_non_https_error_redacts_url_secrets(tmp_path):
+    url = "http://user:secret@[2001:db8::1]/a.iso?token=private-query"
+    with pytest.raises(Fail) as exc:
+        download(url, tmp_path / "a.iso", progress=False)
+    assert exc.value.code == EXIT_DOWNLOAD
+    assert str(exc.value) == "refusing non-HTTPS URL: http://[2001:db8::1]/a.iso"
+    assert "secret" not in str(exc.value)
+    assert "private-query" not in str(exc.value)
+
+
+def test_user_agent_matches_package_version(tmp_path, monkeypatch):
+    from vmtools import __version__
+
+    dest = tmp_path / "image.iso"
+    requests = serve(monkeypatch, Response(b"abc", headers={"Content-Length": "3"}))
+    download("https://example.org/image.iso", dest, progress=False)
+    assert requests[0].get_header("User-agent") == f"vmtools/{__version__} (NixOS host suite)"
