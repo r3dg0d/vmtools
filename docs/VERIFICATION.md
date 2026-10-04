@@ -10,6 +10,12 @@ normally.
 HTTP error hints show only scheme, host, and path. Userinfo, query strings,
 and fragments are omitted so signed credentials are not written to the terminal.
 
+Userinfo is removed before the host is parsed. `http.client` otherwise reads
+the password as an implicit port and includes it in `InvalidURL`. The query
+string is still sent; that is where signed ISO URLs carry their credential.
+The same stripping applies to HTTPS redirects. Sibling ISO downloads
+(`windowsvm` custom URL, `linuxvm iso download`) use this client.
+
 Downloads stage as `*.iso.part` until complete. Advertised response lengths and
 resume ranges are checked before the file is promoted. Incomplete transfers retain
 the staging file for retry and exit with download error code `4`.

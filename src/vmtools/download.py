@@ -27,7 +27,9 @@ class _HTTPSRedirectHandler(urllib.request.HTTPRedirectHandler):
         if urllib.parse.urlsplit(newurl).scheme.lower() != "https":
             fp.close()
             raise Fail("download failed: refusing non-HTTPS redirect", EXIT_DOWNLOAD)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        # Parent already joined a relative Location. Strip userinfo only after
+        # the scheme check so a downgrade cannot hide inside the authority.
+        return super().redirect_request(req, fp, code, msg, headers, _strip_userinfo(newurl))
 
 
 def _url_key(url: str) -> str:
@@ -45,6 +47,20 @@ def _public_url(url: str) -> str:
     if parts.port:
         netloc = f"{hostname}:{parts.port}"
     return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+
+
+def _strip_userinfo(url: str) -> str:
+    """Drop userinfo before urllib sees the host.
+
+    http.client treats the colon in ``user:secret@host`` as a port when the
+    port is implicit, and the InvalidURL message contains the password.
+    The query is preserved: signed ISO URLs carry the credential there.
+    """
+    parts = urllib.parse.urlsplit(url)
+    netloc = parts.netloc
+    if "@" in netloc:
+        netloc = netloc.rsplit("@", 1)[1]
+    return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, parts.query, ""))
 
 
 def _strong_etag(value: str | None) -> str | None:
@@ -155,7 +171,10 @@ def download(
 
     ctx = ssl.create_default_context()
     opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx), _HTTPSRedirectHandler())
-    req = urllib.request.Request(url, headers=headers)
+    # Keep the caller's URL (userinfo included) for the resume key only.
+    # The wire request must not use userinfo as its host.
+    request_url = _strip_userinfo(url)
+    req = urllib.request.Request(request_url, headers=headers)
 
     try:
         try:
@@ -170,14 +189,17 @@ def download(
                 _discard_resume_state(metadata)
                 OUT.ok(f"cached and verified: {dest}")
                 return dest
-            req = urllib.request.Request(url, headers={"User-Agent": headers["User-Agent"]})
+            req = urllib.request.Request(request_url, headers={"User-Agent": headers["User-Agent"]})
             resp = opener.open(req, timeout=120)
             existing = 0
     except urllib.error.HTTPError as exc:
         exc.close()
         raise Fail(f"download failed: HTTP {exc.code}", EXIT_DOWNLOAD, _public_url(url)) from exc
     except urllib.error.URLError as exc:
-        raise Fail(f"download failed: {exc.reason}", EXIT_DOWNLOAD) from exc
+        raise Fail(f"download failed: {exc.reason}", EXIT_DOWNLOAD, _public_url(url)) from exc
+    except http.client.InvalidURL as exc:
+        # InvalidURL text can quote the raw authority ("nonnumeric port: 'secret@host'").
+        raise Fail("download failed: invalid URL", EXIT_DOWNLOAD, _public_url(url)) from exc
 
     # Validate framing before opening the staging file, preserving it on bad ranges.
     try:

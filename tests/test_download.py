@@ -439,3 +439,49 @@ def test_user_agent_matches_package_version(tmp_path, monkeypatch):
     requests = serve(monkeypatch, Response(b"abc", headers={"Content-Length": "3"}))
     download("https://example.org/image.iso", dest, progress=False)
     assert requests[0].get_header("User-agent") == f"vmtools/{__version__} (NixOS host suite)"
+
+
+def test_userinfo_is_not_part_of_the_request_host(tmp_path, monkeypatch):
+    """Password colons are not a port. Sibling ISO downloads use this client."""
+    url = "https://user:secret@example.org/image.iso?token=private-query#frag"
+    requests = serve(monkeypatch, Response(b"abc", headers={"Content-Length": "3"}))
+    download(url, tmp_path / "image.iso", progress=False)
+    req = requests[0]
+    assert req.host == "example.org"
+    assert req.full_url == "https://example.org/image.iso?token=private-query"
+    assert "secret" not in f"{req.host} {req.full_url} {req.selector}"
+    assert req.get_header("Range") is None
+
+
+def test_redirect_drops_userinfo_but_keeps_signed_query(tmp_path, monkeypatch):
+    requests, _responses = redirect_transport(monkeypatch, [
+        (302, "https://user:secret@cdn.example.org/image.iso?token=private-query"),
+    ])
+    dest = tmp_path / "image.iso"
+    download("https://example.org/start.iso", dest, progress=False)
+    assert requests == [
+        "https://example.org/start.iso",
+        "https://cdn.example.org/image.iso?token=private-query",
+    ]
+    assert dest.read_bytes() == b"image"
+    assert "secret" not in " ".join(requests)
+
+
+def test_userinfo_connection_error_does_not_quote_the_password(tmp_path, monkeypatch):
+    import socket
+    import urllib.request
+
+    def refuse(*_args, **_kwargs):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(urllib.request, "getproxies", lambda: {})
+    url = "https://user:secret@example.org/image.iso?token=private-query#frag"
+    with pytest.raises(Fail) as exc:
+        download(url, tmp_path / "image.iso", progress=False)
+    shown = f"{exc.value} {exc.value.hint}"
+    assert exc.value.code == EXIT_DOWNLOAD
+    assert exc.value.hint == "https://example.org/image.iso"
+    assert "secret" not in shown
+    assert "private-query" not in shown
+    assert "invalid URL" not in str(exc.value)
