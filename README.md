@@ -8,8 +8,24 @@ Sibling CLI/TUI suite for personal VMs on NixOS, matching the look and feel of `
 | `windowsvm` | Windows Construct — QEMU/KVM/libvirt |
 | `linuxvm` | Linux Construct — QEMU/KVM/libvirt |
 | `androidvm` | Android Construct — Docker-Android-Pro |
-| `iosvm` | iOS virtualization (apple-vm-tools) |
-| `macosvm` | macOS QEMU/KVM (apple-vm-tools) |
+| `iosvm` | iOS Construct — iOS kernels to a root shell on qemu-sptm (darwin-vm); Xcode Simulator via a macOS guest |
+| `macosvm` | macOS Construct — QEMU/KVM + OpenCore (OSX-KVM recipe), or Docker-OSX |
+
+## Apple guests (iosvm / macosvm)
+
+Apple software is **never bundled**. You either `import` files you obtained yourself (normally on
+your own Mac), or ask for an explicit `fetch` straight from Apple's public servers. See
+[docs/MACOSVM.md](docs/MACOSVM.md) and [docs/IOSVM.md](docs/IOSVM.md), including how to get each
+file on a Mac.
+
+```bash
+nix-build nix/apple-assets.nix -o ~/.local/share/vmtools/apple/assets   # OpenCore/OVMF + darwin-vm helpers (dev checkout)
+macosvm doctor
+macosvm import ~/Mac-share/BaseSystem.dmg          # or an installer .img / Install macOS *.app / InstallAssistant.pkg
+macosvm create --name mac --version sonoma && macosvm start mac && macosvm display mac
+iosvm import ~/Mac-share/darwin-vm/firmware --name ios27      # finished on the Mac (get_files.sh + fix_perms.sh)
+iosvm create --name iphone && iosvm start iphone && iosvm console iphone
+```
 
 ## Quick start
 
