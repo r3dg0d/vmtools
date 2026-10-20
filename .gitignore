@@ -11,3 +11,11 @@ build/
 *.iso
 *.iso.part
 .DS_Store
+
+# Apple media is user-supplied; never commit it
+*.ipsw
+*.dmg
+*.pkg
+*.img
+result
+result-*

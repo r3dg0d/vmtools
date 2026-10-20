@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=iOS Construct
+GenericName=iOS VM Manager
+Comment=iOS guests via QEMU (vmtools iosvm) — Apple media is user-supplied
+Exec=ghostty -e sh -c 'iosvm doctor; iosvm list; exec "$SHELL"'
+Icon=computer
+Terminal=false
+Categories=System;Emulator;
+Keywords=Matrix;iOS;iPhone;Apple;VM;QEMU;vmtools;Construct;

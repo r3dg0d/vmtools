@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=macOS Construct
+GenericName=macOS VM Manager
+Comment=macOS guests via QEMU (vmtools macosvm) — Apple media is user-supplied
+Exec=ghostty -e sh -c 'macosvm doctor; macosvm list; exec "$SHELL"'
+Icon=computer
+Terminal=false
+Categories=System;Emulator;
+Keywords=Matrix;macOS;Mac;Apple;VM;QEMU;vmtools;Construct;
